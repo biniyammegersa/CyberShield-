@@ -80,6 +80,17 @@ export function requirePermission(...permissions: Permission[]) {
   };
 }
 
+export function requirePlatformRoles(...roles: PlatformRole[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const role = getEffectiveRole(req);
+    if (!role || !roles.includes(role)) {
+      next(forbidden());
+      return;
+    }
+    next();
+  };
+}
+
 export function requireSuperAdmin() {
   return requirePermission(Permission.MANAGE_ORGANIZATIONS);
 }

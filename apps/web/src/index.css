@@ -2,6 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    /* App shell — light */
+    --app-bg: 248 250 252;
+    --app-fg: 15 23 42;
+    --app-border: 226 232 240;
+
+    /* Sidebar — light */
+    --sidebar-bg: 255 255 255;
+    --sidebar-fg: 15 23 42;
+    --sidebar-muted: 100 116 139;
+    --sidebar-border: 226 232 240;
+    --sidebar-hover: 241 245 249;
+    --sidebar-nav-fg: 71 85 105;
+    --sidebar-nav-hover-fg: 15 23 42;
+
+    /* Role accent (overridden per role on sidebar) */
+    --role-accent: 8 145 178;
+    --role-accent-fg: 14 116 144;
+  }
+
+  .dark {
+    /* App shell — dark */
+    --app-bg: 15 23 42;
+    --app-fg: 248 250 252;
+    --app-border: 30 41 59;
+
+    /* Sidebar — dark */
+    --sidebar-bg: 2 6 23;
+    --sidebar-fg: 248 250 252;
+    --sidebar-muted: 100 116 139;
+    --sidebar-border: 30 41 59;
+    --sidebar-hover: 15 23 42;
+    --sidebar-nav-fg: 148 163 184;
+    --sidebar-nav-hover-fg: 248 250 252;
+  }
+
+  /* Role accent colors */
+  [data-role='SUPER_ADMIN'] {
+    --role-accent: 99 102 241;
+    --role-accent-fg: 129 140 248;
+  }
+  [data-role='SECURITY_ANALYST'] {
+    --role-accent: 6 182 212;
+    --role-accent-fg: 34 211 238;
+  }
+  [data-role='IT_ADMINISTRATOR'] {
+    --role-accent: 16 185 129;
+    --role-accent-fg: 52 211 153;
+  }
+  [data-role='EXECUTIVE_MANAGER'] {
+    --role-accent: 245 158 11;
+    --role-accent-fg: 251 191 36;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-app-bg text-app-fg antialiased;
+}
+
+@layer components {
+  .sidebar-nav-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors border-l-2 border-transparent text-sidebar-nav-fg;
+  }
+
+  .sidebar-nav-link:hover {
+    @apply text-sidebar-nav-hover-fg bg-sidebar-hover;
+  }
+
+  .sidebar-nav-link--active {
+    color: rgb(var(--role-accent-fg));
+    background-color: rgb(var(--role-accent) / 0.12);
+    border-left-color: rgb(var(--role-accent-fg));
+    @apply font-medium pl-[10px];
+  }
+
+  .sidebar-section-label {
+    color: rgb(var(--role-accent-fg) / 0.75);
+  }
+
+  .sidebar-role-label {
+    color: rgb(var(--role-accent-fg));
+  }
 }
