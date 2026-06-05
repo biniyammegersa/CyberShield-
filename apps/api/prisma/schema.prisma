@@ -1,0 +1,415 @@
+// CyberShield - Prisma Schema
+// See docs/ARCHITECTURE.md for full design context
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  SECURITY_ANALYST
+  IT_ADMINISTRATOR
+  EXECUTIVE_MANAGER
+}
+
+enum AssetType {
+  SERVER
+  WORKSTATION
+  ROUTER
+  SWITCH
+  FIREWALL
+  DATABASE
+  APPLICATION
+  CLOUD_RESOURCE
+}
+
+enum AssetStatus {
+  ACTIVE
+  INACTIVE
+  DECOMMISSIONED
+  UNKNOWN
+}
+
+enum Criticality {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFORMATIONAL
+}
+
+enum VulnerabilityStatus {
+  OPEN
+  CONFIRMED
+  FALSE_POSITIVE
+  ACCEPTED_RISK
+  MITIGATED
+  CLOSED
+}
+
+enum RemediationStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  VERIFIED
+  CLOSED
+}
+
+enum ScanReportFormat {
+  NMAP_XML
+  NESSUS
+  OPENVAS
+  PDF
+}
+
+enum ScanReportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationType {
+  CRITICAL_VULN
+  REMEDIATION_DUE
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  REPORT_READY
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  ASSET_CREATED
+  ASSET_UPDATED
+  ASSET_DELETED
+  VULN_CREATED
+  VULN_UPDATED
+  VULN_DELETED
+  REMEDIATION_UPDATED
+  REPORT_GENERATED
+  SCAN_UPLOADED
+  ORG_SETTINGS_CHANGED
+  ROLE_CHANGED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  domain    String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members         OrganizationMember[]
+  assets          Asset[]
+  vulnerabilities Vulnerability[]
+  scanReports     ScanReport[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  reports         Report[]
+  riskSnapshots   PostureSnapshot[]
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  department      String?
+  status          UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt DateTime?
+  platformRole    PlatformRole?
+  lastLoginAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  memberships   OrganizationMember[]
+  refreshTokens RefreshToken[]
+  loginHistory  LoginHistory[]
+  assignedTasks RemediationTask[]    @relation("AssignedTo")
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  comments      RemediationComment[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           PlatformRole
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String
+  familyId  String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  ipAddress String
+  userAgent String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Asset {
+  id               String      @id @default(cuid())
+  organizationId   String
+  name             String
+  hostname         String?
+  ipAddress        String?
+  assetType        AssetType
+  operatingSystem  String?
+  owner            String?
+  location         String?
+  criticality      Criticality @default(MEDIUM)
+  status           AssetStatus @default(ACTIVE)
+  isInternetFacing Boolean     @default(false)
+  metadata         Json        @default("{}")
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  services           AssetService[]
+  vulnerabilityLinks VulnerabilityAsset[]
+  scanOrigins        ScanReportAsset[]
+
+  @@index([organizationId, assetType])
+  @@index([organizationId, criticality])
+  @@index([organizationId, ipAddress])
+}
+
+model AssetService {
+  id        String   @id @default(cuid())
+  assetId   String
+  port      Int
+  protocol  String
+  service   String?
+  version   String?
+  state     String?
+  createdAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, port, protocol])
+}
+
+model Vulnerability {
+  id             String              @id @default(cuid())
+  organizationId String
+  title          String
+  description    String              @db.Text
+  severity       Severity
+  cvssScore      Float?
+  cveId          String?
+  discoveryDate  DateTime
+  status         VulnerabilityStatus @default(OPEN)
+  likelihood     Int?
+  impact         Int?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  affectedAssets VulnerabilityAsset[]
+  remediation    RemediationTask?
+
+  @@index([organizationId, severity])
+  @@index([organizationId, status])
+  @@index([cveId])
+}
+
+model VulnerabilityAsset {
+  vulnerabilityId String
+  assetId         String
+  riskScore       Float?
+
+  vulnerability Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+  asset         Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([vulnerabilityId, assetId])
+}
+
+model RemediationTask {
+  id              String            @id @default(cuid())
+  vulnerabilityId String            @unique
+  assignedToId    String?
+  status          RemediationStatus @default(OPEN)
+  dueDate         DateTime?
+  completedAt     DateTime?
+  verifiedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  vulnerability Vulnerability         @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+  assignedTo    User?                 @relation("AssignedTo", fields: [assignedToId], references: [id])
+  comments      RemediationComment[]
+  evidence      RemediationEvidence[]
+}
+
+model RemediationComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  task   RemediationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User            @relation(fields: [authorId], references: [id])
+}
+
+model RemediationEvidence {
+  id        String   @id @default(cuid())
+  taskId    String
+  fileName  String
+  fileUrl   String
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  task RemediationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model ScanReport {
+  id             String           @id @default(cuid())
+  organizationId String
+  uploadedById   String?
+  format         ScanReportFormat
+  fileName       String
+  fileUrl        String
+  status         ScanReportStatus @default(PENDING)
+  errorMessage   String?
+  parsedAt       DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assets       ScanReportAsset[]
+}
+
+model ScanReportAsset {
+  scanReportId String
+  assetId      String
+
+  scanReport ScanReport @relation(fields: [scanReportId], references: [id], onDelete: Cascade)
+  asset      Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([scanReportId, assetId])
+}
+
+model PostureSnapshot {
+  id             String   @id @default(cuid())
+  organizationId String
+  score          Float
+  openCount      Int
+  criticalCount  Int
+  metadata       Json
+  capturedAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, capturedAt])
+}
+
+model AuditLog {
+  id             String      @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         AuditAction
+  resourceType   String
+  resourceId     String?
+  metadata       Json        @default("{}")
+  ipAddress      String
+  userAgent      String?
+  createdAt      DateTime    @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType
+  title          String
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  organizationId String
+  requestedById  String
+  type           String
+  format         String
+  status         String
+  fileUrl        String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model PlatformSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,23 @@
+{
+  "name": "cybershield",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @cybershield/api & npm run dev -w @cybershield/web",
+    "dev:api": "npm run dev -w @cybershield/api",
+    "dev:web": "npm run dev -w @cybershield/web",
+    "build": "npm run build -w @cybershield/api && npm run build -w @cybershield/web",
+    "lint": "npm run lint -w @cybershield/api && npm run lint -w @cybershield/web",
+    "typecheck": "npm run typecheck -w @cybershield/api && npm run typecheck -w @cybershield/web",
+    "db:migrate": "npm run db:migrate -w @cybershield/api",
+    "db:seed": "npm run db:seed -w @cybershield/api",
+    "db:generate": "npm run db:generate -w @cybershield/api",
+    "db:studio": "npm run db:studio -w @cybershield/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
